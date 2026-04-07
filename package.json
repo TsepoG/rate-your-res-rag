@@ -1,0 +1,27 @@
+{
+  "name": "rate-your-res-rag",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TsepoG/rate-your-res-rag.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/TsepoG/rate-your-res-rag/issues"
+  },
+  "homepage": "https://github.com/TsepoG/rate-your-res-rag#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
+    "axios": "^1.14.0",
+    "dotenv": "^17.4.1",
+    "pg": "^8.20.0"
+  }
+}
