@@ -19,7 +19,7 @@ app.get('/api/health', (req, res) => {
 
 // Main query endpoint
 app.post('/api/query', async (req, res) => {
-  const { question, role = 'dev' } = req.body;
+  const { question, role = 'dev', history = [] } = req.body;
 
   if (!question || question.trim().length === 0) {
     return res.status(400).json({ error: 'Question is required' });
@@ -30,8 +30,17 @@ app.post('/api/query', async (req, res) => {
   }
 
   try {
-    const result = await query(question, { role });
-    res.json(result);
+    const result = await query(question, { role, history });
+
+    // Tell the frontend exactly which history messages were used
+    const contextWindow = history.slice(-4);
+
+    res.json({
+      ...result,
+      contextUsed: contextWindow.length > 0
+        ? { count: contextWindow.length, messages: contextWindow }
+        : null
+    });
   } catch (err) {
     console.error('Query error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

@@ -2,15 +2,37 @@ import React from 'react'
 import styled from 'styled-components'
 import ReactMarkdown from 'react-markdown'
 
-export default function Message({ role, content, sources }) {
+export default function Message({ role, content, sources, inContext, contextUsed }) {
   return (
-    <MessageWrapper $role={role}>
-      <Bubble $role={role}>
+    <MessageWrapper $role={role} $inContext={inContext}>
+
+      {/* Context highlight indicator on highlighted messages */}
+      {inContext && (
+        <ContextBadge>
+          <ContextDot />
+          Used as context
+        </ContextBadge>
+      )}
+
+      <Bubble $role={role} $inContext={inContext}>
         {role === 'assistant'
           ? <ReactMarkdown>{content}</ReactMarkdown>
           : content
         }
       </Bubble>
+
+      {/* Context used notice on assistant response */}
+      {contextUsed && contextUsed.count > 0 && (
+        <ContextNotice>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Last {contextUsed.count} messages used as context for this response
+        </ContextNotice>
+      )}
 
       {sources && (sources.docs.length > 0 || sources.code.length > 0) && (
         <Sources>
@@ -52,6 +74,43 @@ const MessageWrapper = styled.div`
   max-width: 800px;
   align-self: ${p => p.$role === 'user' ? 'flex-end' : 'flex-start'};
   align-items: ${p => p.$role === 'user' ? 'flex-end' : 'flex-start'};
+  position: relative;
+
+  ${p => p.$inContext && `
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #EEF2FF;
+    border: 1px solid #C7D2FE;
+  `}
+`
+
+const ContextBadge = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #4F46E5;
+`
+
+const ContextDot = styled.div`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4F46E5;
+`
+
+const ContextNotice = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748B;
+  padding: 4px 8px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  width: fit-content;
 `
 
 const Bubble = styled.div`
@@ -65,9 +124,7 @@ const Bubble = styled.div`
   border: ${p => p.$role === 'user' ? 'none' : '1px solid #E2E8F0'};
   border-bottom-right-radius: ${p => p.$role === 'user' ? '4px' : '12px'};
   border-bottom-left-radius: ${p => p.$role === 'assistant' ? '4px' : '12px'};
-  display: ${p => p.$role === 'assistant' ? 'block' : 'inline-block'};
 
-  /* Markdown styles */
   h1, h2, h3 { margin: 16px 0 8px; font-weight: 600; }
   h1 { font-size: 18px; }
   h2 { font-size: 16px; }
@@ -105,10 +162,7 @@ const Bubble = styled.div`
     padding: 8px 12px;
     text-align: left;
   }
-  td {
-    padding: 8px 12px;
-    border-bottom: 1px solid #E2E8F0;
-  }
+  td { padding: 8px 12px; border-bottom: 1px solid #E2E8F0; }
   tr:nth-child(even) td { background: #F8FAFC; }
   strong { font-weight: 600; }
   hr { border: none; border-top: 1px solid #E2E8F0; margin: 16px 0; }

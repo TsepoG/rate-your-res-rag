@@ -18,16 +18,41 @@ export default function App() {
   }, [messages, loading])
 
   async function handleSend(question) {
-    setMessages(prev => [...prev, { role: 'user', content: question }])
+    const newMessage = { role: 'user', content: question }
+    const updatedMessages = [...messages, newMessage]
+    setMessages(updatedMessages)
     setLoading(true)
 
     try {
-      const result = await sendQuery(question, role)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: result.answer,
-        sources: result.sources
-      }])
+      const history = messages.filter(m =>
+        m.role === 'user' || m.role === 'assistant'
+      )
+
+      const result = await sendQuery(question, role, history)
+
+      setMessages(prev => {
+        // Step 1 — clear ALL previous context highlights first
+        const cleared = prev.map(m => ({ ...m, inContext: false }))
+
+        // Step 2 — highlight only the last contextCount messages
+        if (result.contextUsed && result.contextUsed.count > 0) {
+          const contextCount = result.contextUsed.count
+          // -1 because the last message is the user question we just added
+          const startIndex = cleared.length - 1 - contextCount
+          for (let i = Math.max(0, startIndex); i < cleared.length - 1; i++) {
+            cleared[i] = { ...cleared[i], inContext: true }
+          }
+        }
+
+        // Step 3 — append the new assistant response
+        return [...cleared, {
+          role: 'assistant',
+          content: result.answer,
+          sources: result.sources,
+          contextUsed: result.contextUsed
+        }]
+      })
+
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -66,6 +91,8 @@ export default function App() {
               role={msg.role}
               content={msg.content}
               sources={msg.sources}
+              inContext={msg.inContext}
+              contextUsed={msg.contextUsed}
             />
           ))}
 
