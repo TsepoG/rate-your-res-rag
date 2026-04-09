@@ -71,8 +71,7 @@ const MessageWrapper = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 800px;
-  align-self: ${p => p.$role === 'user' ? 'flex-end' : 'flex-start'};
+  width: 100%;
   align-items: ${p => p.$role === 'user' ? 'flex-end' : 'flex-start'};
   position: relative;
 

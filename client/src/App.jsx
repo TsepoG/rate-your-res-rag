@@ -124,6 +124,7 @@ const Chat = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
+  align-items: stretch;
 `
 
 const Welcome = styled.div`
