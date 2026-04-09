@@ -2,6 +2,7 @@ require('dotenv').config();
 const axios = require('axios');
 const { embed } = require('../services/embedder');
 const { storeConfluenceChunk } = require('../services/vectorStore');
+const { getSyncState, upsertSyncState } = require('../services/syncState');
 
 const confluenceClient = axios.create({
   baseURL: `${process.env.CONFLUENCE_BASE_URL}/wiki/rest/api`,
@@ -89,28 +90,53 @@ function chunkDocument(doc, chunkSize = 400, overlap = 80) {
   return chunks;
 }
 
-async function ingestConfluenceSpace(spaceKey) {
-  console.log(`Starting ingestion for space: ${spaceKey}`);
+async function ingestPage(page, { force = false } = {}) {
+  const identifier = `confluence:${page.id}`;
+  const lastModified = page.version.when;
+
+  // Check if page has changed since last sync
+  if (!force) {
+    const existing = await getSyncState('confluence', identifier);
+    if (existing && existing.last_modified === lastModified) {
+      return { status: 'skipped', title: page.title };
+    }
+  }
+
+  const cleaned = cleanPage(page);
+  const chunks = chunkDocument(cleaned);
+
+  for (const chunk of chunks) {
+    const vector = await embed(chunk.content);
+    await storeConfluenceChunk({ ...chunk, vector });
+  }
+
+  await upsertSyncState('confluence', identifier, { lastModified });
+  return { status: 'updated', title: page.title, chunks: chunks.length };
+}
+
+async function ingestConfluenceSpace(spaceKey, { force = false } = {}) {
+  console.log(`Starting Confluence ingestion for space: ${spaceKey}`);
 
   const pages = await getAllPages(spaceKey);
+  let updated = 0;
+  let skipped = 0;
   let totalChunks = 0;
 
   for (const page of pages) {
-    console.log(`Processing: ${page.title}`);
+    const result = await ingestPage(page, { force });
 
-    const cleaned = cleanPage(page);
-    const chunks = chunkDocument(cleaned);
-
-    for (const chunk of chunks) {
-      const vector = await embed(chunk.content);
-      await storeConfluenceChunk({ ...chunk, vector });
+    if (result.status === 'updated') {
+      console.log(`  → Updated: ${result.title} (${result.chunks} chunks)`);
+      updated++;
+      totalChunks += result.chunks;
+    } else {
+      console.log(`  → Skipped (unchanged): ${result.title}`);
+      skipped++;
     }
-
-    totalChunks += chunks.length;
-    console.log(`  → ${chunks.length} chunks stored`);
   }
 
-  console.log(`Ingestion complete. Total chunks stored: ${totalChunks}`);
+  console.log(`\nConfluence complete — ${updated} updated, ${skipped} skipped, ${totalChunks} chunks stored`);
+  return { updated, skipped, totalChunks };
 }
 
 module.exports = { ingestConfluenceSpace };

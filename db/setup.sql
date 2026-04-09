@@ -30,7 +30,25 @@ CREATE TABLE IF NOT EXISTS code_chunks (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Sync state tracking for incremental re-indexing
+CREATE TABLE IF NOT EXISTS sync_state (
+  source TEXT NOT NULL,
+  identifier TEXT NOT NULL,
+  last_modified TEXT,
+  sha TEXT,
+  last_synced TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (source, identifier)
+);
+
 -- HNSW indexes
-CREATE INDEX IF NOT EXISTS confluence_vector_idx ON confluence_chunks USING hnsw (vector vector_cosine_ops) WITH (m = 16, ef_construction = 64);
-CREATE INDEX IF NOT EXISTS code_vector_idx ON code_chunks USING hnsw (code_vector vector_cosine_ops) WITH (m = 16, ef_construction = 64);
-CREATE INDEX IF NOT EXISTS code_summary_vector_idx ON code_chunks USING hnsw (summary_vector vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS confluence_vector_idx
+  ON confluence_chunks USING hnsw (vector vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX IF NOT EXISTS code_vector_idx
+  ON code_chunks USING hnsw (code_vector vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX IF NOT EXISTS code_summary_vector_idx
+  ON code_chunks USING hnsw (summary_vector vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
