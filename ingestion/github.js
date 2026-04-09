@@ -1,5 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
+const { getSyncState, upsertSyncState } = require('../services/syncState');
 const { embed } = require('../services/embedder');
 const { storeCodeChunk } = require('../services/vectorStore');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -187,16 +188,29 @@ ${code.slice(0, 1000)}`
   return response.content[0].text;
 }
 
-async function ingestRepository(owner, repo) {
+async function ingestRepository(owner, repo, { force = false } = {}) {
   console.log(`Starting ingestion for repo: ${owner}/${repo}`);
 
   const files = await getFileTree(owner, repo);
   console.log(`Found ${files.length} code files`);
 
-  let totalChunks = 0;
+  let updated = 0;
   let skipped = 0;
+  let errors = 0;
 
   for (const file of files) {
+    const identifier = `github:${repo}:${file.path}`;
+
+    // Check if file has changed since last sync
+    if (!force) {
+      const existing = await getSyncState('github', identifier);
+      if (existing && existing.sha === file.sha) {
+        console.log(`  → Skipped (unchanged): ${file.path}`);
+        skipped++;
+        continue;
+      }
+    }
+
     try {
       console.log(`Processing: ${file.path}`);
       const content = await getFileContent(owner, repo, file.path);
@@ -215,28 +229,25 @@ async function ingestRepository(owner, repo) {
           summary,
           codeVector,
           summaryVector,
-          metadata: {
-            ...chunk.metadata,
-            functionName: chunk.metadata.name
-          }
+          metadata: { ...chunk.metadata, functionName: chunk.metadata.name }
         });
       }
 
-      totalChunks += chunks.length;
-      console.log(`  → ${chunks.length} chunks stored`);
+      await upsertSyncState('github', identifier, { sha: file.sha });
 
-      // Small delay to avoid GitHub rate limiting
-      await new Promise(r => setTimeout(r, 500));
+      updated++;
+      console.log(`  → Updated: ${file.path} (${chunks.length} chunks)`);
+
+      await new Promise(r => setTimeout(r, 300));
 
     } catch (err) {
-      console.log(`  → Skipped ${file.path}: ${err.message}`);
-      skipped++;
+      console.log(`  → Error: ${file.path}: ${err.message}`);
+      errors++;
     }
   }
 
-  console.log(`\nIngestion complete.`);
-  console.log(`Total chunks stored: ${totalChunks}`);
-  console.log(`Files skipped: ${skipped}`);
+  console.log(`\nGitHub complete — ${updated} updated, ${skipped} skipped, ${errors} errors`);
+  return { updated, skipped, errors };
 }
 
 module.exports = { ingestRepository };
