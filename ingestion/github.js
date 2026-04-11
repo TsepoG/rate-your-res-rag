@@ -10,16 +10,27 @@ const client = new Anthropic();
 const githubClient = axios.create({
   baseURL: 'https://api.github.com',
   headers: {
-    'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
-  }
+    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  },
 });
 
 const CODE_EXTENSIONS = [
-  '.js', '.jsx', '.ts', '.tsx', '.py', '.java',
-  '.cs', '.go', '.rb', '.php', '.sql', '.css',
-  '.tf', '.tfvars'
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.py',
+  '.java',
+  '.cs',
+  '.go',
+  '.rb',
+  '.php',
+  '.sql',
+  '.css',
+  '.tf',
+  '.tfvars',
 ];
 
 const EXCLUDED_PATHS = [
@@ -28,27 +39,34 @@ const EXCLUDED_PATHS = [
   'build/',
   'coverage/',
   '.git/',
-  'vendor/'
+  'vendor/',
 ];
 
 const MAX_CHUNK_CHARS = 3000;
 
 function isCodeFile(path) {
-  const hasValidExtension = CODE_EXTENSIONS.some(ext => path.endsWith(ext));
-  const isExcluded = EXCLUDED_PATHS.some(excluded => path.includes(excluded));
+  const hasValidExtension = CODE_EXTENSIONS.some((ext) => path.endsWith(ext));
+  const isExcluded = EXCLUDED_PATHS.some((excluded) => path.includes(excluded));
   return hasValidExtension && !isExcluded;
 }
 
 function detectLanguage(path) {
   const ext = path.split('.').pop();
   const map = {
-    js: 'javascript', jsx: 'javascript',
-    ts: 'typescript', tsx: 'typescript',
-    py: 'python', java: 'java',
-    cs: 'csharp', go: 'go',
-    rb: 'ruby', php: 'php',
-    sql: 'sql', css: 'css',
-    tf: 'terraform', tfvars: 'terraform'
+    js: 'javascript',
+    jsx: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    py: 'python',
+    java: 'java',
+    cs: 'csharp',
+    go: 'go',
+    rb: 'ruby',
+    php: 'php',
+    sql: 'sql',
+    css: 'css',
+    tf: 'terraform',
+    tfvars: 'terraform',
   };
   return map[ext] || 'plaintext';
 }
@@ -58,18 +76,18 @@ async function getFileTree(owner, repo) {
   const defaultBranch = repoData.data.default_branch;
 
   const treeRes = await githubClient.get(
-    `/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`
+    `/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
   );
 
   return treeRes.data.tree.filter(
-    item => item.type === 'blob' && isCodeFile(item.path)
+    (item) => item.type === 'blob' && isCodeFile(item.path),
   );
 }
 
 async function getFileContent(owner, repo, path) {
   const res = await githubClient.get(
     `/repos/${owner}/${repo}/contents/${path}`,
-    { headers: { 'Accept': 'application/vnd.github.raw+json' } }
+    { headers: { Accept: 'application/vnd.github.raw+json' } },
   );
   return res.data;
 }
@@ -83,7 +101,7 @@ function chunkByFunctions(content, filePath, repo) {
     /^(export\s+)?(async\s+)?function\s+(\w+)/,
     /^(export\s+)?(const|let|var)\s+(\w+)\s*=\s*(async\s*)?\(/,
     /^(export\s+)?(default\s+)?(class)\s+(\w+)/,
-    /^\s{2,}(async\s+)?(\w+)\s*\([^)]*\)\s*\{/
+    /^\s{2,}(async\s+)?(\w+)\s*\([^)]*\)\s*\{/,
   ];
 
   let currentChunk = [];
@@ -93,7 +111,7 @@ function chunkByFunctions(content, filePath, repo) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const isFunction = functionPatterns.some(p => p.test(line));
+    const isFunction = functionPatterns.some((p) => p.test(line));
 
     if (isFunction && braceDepth === 0) {
       if (currentChunk.length > 3) {
@@ -112,14 +130,15 @@ function chunkByFunctions(content, filePath, repo) {
             name: currentName,
             language,
             startLine,
-            endLine: i
-          }
+            endLine: i,
+          },
         });
       }
 
       currentChunk = [line];
-      currentName = line.match(/(\w+)\s*[\(=]/) ?
-        line.match(/(\w+)\s*[\(=]/)[1] : `chunk_${i}`;
+      currentName = line.match(/(\w+)\s*[\(=]/)
+        ? line.match(/(\w+)\s*[\(=]/)[1]
+        : `chunk_${i}`;
       startLine = i + 1;
     } else {
       currentChunk.push(line);
@@ -144,8 +163,8 @@ function chunkByFunctions(content, filePath, repo) {
         name: currentName,
         language,
         startLine,
-        endLine: lines.length
-      }
+        endLine: lines.length,
+      },
     });
   }
 
@@ -165,8 +184,8 @@ function chunkByFunctions(content, filePath, repo) {
           name: `${filePath.split('/').pop()}_part${index + 1}`,
           language,
           startLine: index * 50 + 1,
-          endLine: (index + 1) * 50
-        }
+          endLine: (index + 1) * 50,
+        },
       });
     });
   }
@@ -178,12 +197,14 @@ async function generateSummary(code, filePath) {
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 150,
-    messages: [{
-      role: 'user',
-      content: `In 2-3 sentences, describe what this code does in plain English. Focus on business purpose not implementation details. File: ${filePath}
+    messages: [
+      {
+        role: 'user',
+        content: `In 2-3 sentences, describe what this code does in plain English. Focus on business purpose not implementation details. File: ${filePath}
 
-${code.slice(0, 1000)}`
-    }]
+${code.slice(0, 1000)}`,
+      },
+    ],
   });
   return response.content[0].text;
 }
@@ -221,7 +242,7 @@ async function ingestRepository(owner, repo, { force = false } = {}) {
 
         const [codeVector, summaryVector] = await Promise.all([
           embed(chunk.content),
-          embed(summary)
+          embed(summary),
         ]);
 
         await storeCodeChunk({
@@ -229,7 +250,7 @@ async function ingestRepository(owner, repo, { force = false } = {}) {
           summary,
           codeVector,
           summaryVector,
-          metadata: { ...chunk.metadata, functionName: chunk.metadata.name }
+          metadata: { ...chunk.metadata, functionName: chunk.metadata.name },
         });
       }
 
@@ -238,15 +259,16 @@ async function ingestRepository(owner, repo, { force = false } = {}) {
       updated++;
       console.log(`  → Updated: ${file.path} (${chunks.length} chunks)`);
 
-      await new Promise(r => setTimeout(r, 300));
-
+      await new Promise((r) => setTimeout(r, 300));
     } catch (err) {
       console.log(`  → Error: ${file.path}: ${err.message}`);
       errors++;
     }
   }
 
-  console.log(`\nGitHub complete — ${updated} updated, ${skipped} skipped, ${errors} errors`);
+  console.log(
+    `\nGitHub complete — ${updated} updated, ${skipped} skipped, ${errors} errors`,
+  );
   return { updated, skipped, errors };
 }
 

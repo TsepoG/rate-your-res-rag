@@ -8,9 +8,9 @@ const confluenceClient = axios.create({
   baseURL: `${process.env.CONFLUENCE_BASE_URL}/wiki/rest/api`,
   auth: {
     username: process.env.CONFLUENCE_EMAIL,
-    password: process.env.CONFLUENCE_API_TOKEN
+    password: process.env.CONFLUENCE_API_TOKEN,
   },
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
 });
 
 async function getAllPages(spaceKey) {
@@ -25,8 +25,8 @@ async function getAllPages(spaceKey) {
         type: 'page',
         expand: 'body.storage,version,space',
         limit,
-        start
-      }
+        start,
+      },
     });
 
     const { results } = response.data;
@@ -59,7 +59,7 @@ function cleanPage(page) {
     space: page.space.key,
     url: page._links.webui,
     text,
-    lastModified: page.version.when
+    lastModified: page.version.when,
   };
 }
 
@@ -80,11 +80,11 @@ function chunkDocument(doc, chunkSize = 400, overlap = 80) {
           space: doc.space,
           url: doc.url,
           chunkIndex: chunks.length,
-          lastModified: doc.lastModified
-        }
+          lastModified: doc.lastModified,
+        },
       });
     }
-    i += (chunkSize - overlap);
+    i += chunkSize - overlap;
   }
 
   return chunks;
@@ -135,7 +135,9 @@ async function ingestConfluenceSpace(spaceKey, { force = false } = {}) {
     }
   }
 
-  console.log(`\nConfluence complete — ${updated} updated, ${skipped} skipped, ${totalChunks} chunks stored`);
+  console.log(
+    `\nConfluence complete — ${updated} updated, ${skipped} skipped, ${totalChunks} chunks stored`,
+  );
   return { updated, skipped, totalChunks };
 }
 

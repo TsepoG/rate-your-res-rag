@@ -8,24 +8,24 @@ const client = new Anthropic();
 const ROLES = {
   dev: {
     label: 'Developer',
-    tone: 'Use technical language, include code references, mention file paths and function names.'
+    tone: 'Use technical language, include code references, mention file paths and function names.',
   },
   ba: {
     label: 'Business Analyst',
-    tone: 'Use plain business language. Avoid code snippets unless essential. Focus on what the system does, not how it does it. Explain technical terms simply.'
+    tone: 'Use plain business language. Avoid code snippets unless essential. Focus on what the system does, not how it does it. Explain technical terms simply.',
   },
   po: {
     label: 'Product Owner',
-    tone: 'Use plain language focused on product behaviour and user impact. No code. Focus on what works, what is missing, and what the user experiences.'
+    tone: 'Use plain language focused on product behaviour and user impact. No code. Focus on what works, what is missing, and what the user experiences.',
   },
   qa: {
     label: 'QA Engineer',
-    tone: 'Focus on what is testable — inputs, outputs, edge cases, error handling, and validation rules. Keep technical but practical.'
+    tone: 'Focus on what is testable — inputs, outputs, edge cases, error handling, and validation rules. Keep technical but practical.',
   },
   pm: {
     label: 'Project Manager',
-    tone: 'Use plain language. Focus on what is built, what is missing, and what the current state is. No code. Think status reports and progress summaries.'
-  }
+    tone: 'Use plain language. Focus on what is built, what is missing, and what the current state is. No code. Think status reports and progress summaries.',
+  },
 };
 
 async function resolveQuery(userQuery, history = []) {
@@ -34,41 +34,50 @@ async function resolveQuery(userQuery, history = []) {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 200,
-      messages: [{
-        role: 'user',
-        content: `Rewrite this question as 3 different keyword-rich search queries optimised for retrieving relevant code and documentation. Return only the 3 queries, one per line, nothing else.
+      messages: [
+        {
+          role: 'user',
+          content: `Rewrite this question as 3 different keyword-rich search queries optimised for retrieving relevant code and documentation. Return only the 3 queries, one per line, nothing else.
 
-Question: ${userQuery}`
-      }]
+Question: ${userQuery}`,
+        },
+      ],
     });
-    return response.content[0].text.trim().split('\n').filter(q => q.trim());
+    return response.content[0].text
+      .trim()
+      .split('\n')
+      .filter((q) => q.trim());
   }
 
   // With history, resolve the question in context first
   const historyText = history
     .slice(-4) // last 2 exchanges
-    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 300)}`)
+    .map(
+      (m) =>
+        `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 300)}`,
+    )
     .join('\n');
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 200,
-    messages: [{
-      role: 'user',
-      content: `Given this conversation history:
+    messages: [
+      {
+        role: 'user',
+        content: `Given this conversation history:
 ${historyText}
 
 Rewrite the follow-up question as 3 standalone, keyword-rich search queries that make sense without the conversation context. Return only the 3 queries, one per line, nothing else.
 
-Follow-up question: ${userQuery}`
-    }]
+Follow-up question: ${userQuery}`,
+      },
+    ],
   });
 
-  return response.content[0].text.trim().split('\n').filter(q => q.trim());
-}
-
-function filterByRelevance(chunks, threshold = 0.50) {
-  return chunks.filter(chunk => chunk.similarity >= threshold);
+  return response.content[0].text
+    .trim()
+    .split('\n')
+    .filter((q) => q.trim());
 }
 
 function buildContext(docs, code) {
@@ -100,14 +109,15 @@ async function askClaude(userQuery, context, role = 'dev', history = []) {
 
   // Build conversation messages — last 3 exchanges max
   const recentHistory = history.slice(-6); // 3 user + 3 assistant messages
-  
+
   const messages = [
     // Previous conversation turns
-    ...recentHistory.map(m => ({
+    ...recentHistory.map((m) => ({
       role: m.role,
-      content: m.role === 'assistant'
-        ? m.content.slice(0, 500) // truncate long assistant messages
-        : m.content
+      content:
+        m.role === 'assistant'
+          ? m.content.slice(0, 500) // truncate long assistant messages
+          : m.content,
     })),
     // Current question with retrieved context
     {
@@ -118,8 +128,8 @@ ${context}
 
 ---
 
-Question: ${userQuery}`
-    }
+Question: ${userQuery}`,
+    },
   ];
 
   const response = await client.messages.create({
@@ -143,21 +153,30 @@ When answering:
 - If the context does not contain enough information, say so simply
 - Never use raw file paths or function names when answering for non-developer roles`,
 
-    messages
+    messages,
   });
 
   return response.content[0].text;
 }
 
 async function query(userQuery, options = {}) {
-  const { role = 'dev', history = [] } = options;
-  console.log(`\nQuery: ${userQuery} [role: ${role}, history: ${history.length} messages]`);
+  const {
+    role = 'dev',
+    history = [],
+    relevance = 0.5,
+    contextWindow = 2,
+  } = options;
 
-  // Step 1 — Resolve query in context of conversation history
-  const rewrittenQueries = await resolveQuery(userQuery, history);
+  console.log(
+    `\nQuery: ${userQuery} [role: ${role}, relevance: ${relevance}, context: ${contextWindow}]`,
+  );
+
+  // Use contextWindow to determine how much history to pass
+  const trimmedHistory = history.slice(-(contextWindow * 2));
+
+  const rewrittenQueries = await resolveQuery(userQuery, trimmedHistory);
   console.log(`Resolved queries:`, rewrittenQueries);
 
-  // Step 2 — Embed and retrieve for each rewritten query
   const allDocs = new Map();
   const allCode = new Map();
 
@@ -165,17 +184,17 @@ async function query(userQuery, options = {}) {
     const queryVector = await embed(rewritten);
     const { docs, code } = await retrieveRelevantChunks(queryVector, {
       ...options,
-      limit: 8
+      limit: 8,
     });
 
-    docs.forEach(doc => {
+    docs.forEach((doc) => {
       const key = doc.page_title + doc.content.slice(0, 50);
       if (!allDocs.has(key) || allDocs.get(key).similarity < doc.similarity) {
         allDocs.set(key, doc);
       }
     });
 
-    code.forEach(chunk => {
+    code.forEach((chunk) => {
       const key = chunk.file_path + chunk.function_name;
       if (!allCode.has(key) || allCode.get(key).similarity < chunk.similarity) {
         allCode.set(key, chunk);
@@ -183,43 +202,46 @@ async function query(userQuery, options = {}) {
     });
   }
 
-  // Step 3 — Filter and sort
-  const relevantDocs = filterByRelevance([...allDocs.values()])
+  // Use user's relevance setting
+  const relevantDocs = [...allDocs.values()]
+    .filter((chunk) => chunk.similarity >= relevance)
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 5);
 
-  const relevantCode = filterByRelevance([...allCode.values()])
+  const relevantCode = [...allCode.values()]
+    .filter((chunk) => chunk.similarity >= relevance)
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 5);
 
-  console.log(`Retrieved: ${relevantDocs.length} docs, ${relevantCode.length} code chunks`);
+  console.log(
+    `Retrieved: ${relevantDocs.length} docs, ${relevantCode.length} code chunks`,
+  );
 
-  // Step 4 — Handle no results
   if (relevantDocs.length === 0 && relevantCode.length === 0) {
     return {
-      answer: "I couldn't find anything relevant in the documentation or codebase for that question. Try rephrasing or check that the relevant content has been indexed.",
-      sources: { docs: [], code: [] }
+      answer:
+        "I couldn't find anything relevant in the documentation or codebase for that question. Try rephrasing, or consider lowering the relevance filter in the sidebar.",
+      sources: { docs: [], code: [] },
     };
   }
 
-  // Step 5 — Build context and ask Claude with history
   const context = buildContext(relevantDocs, relevantCode);
-  const answer = await askClaude(userQuery, context, role, history);
+  const answer = await askClaude(userQuery, context, role, trimmedHistory);
 
   return {
     answer,
     sources: {
-      docs: relevantDocs.map(d => ({
+      docs: relevantDocs.map((d) => ({
         title: d.page_title,
         url: d.page_url,
-        similarity: Math.round(d.similarity * 100) / 100
+        similarity: Math.round(d.similarity * 100) / 100,
       })),
-      code: relevantCode.map(c => ({
+      code: relevantCode.map((c) => ({
         file: c.file_path,
         function: c.function_name,
-        similarity: Math.round(c.similarity * 100) / 100
-      }))
-    }
+        similarity: Math.round(c.similarity * 100) / 100,
+      })),
+    },
   };
 }
 

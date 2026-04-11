@@ -13,16 +13,16 @@ export const theme = {
     successLight: '#F0FDF4',
     successBorder: '#A7F3D0',
     codeBg: '#0F172A',
-    codeText: '#E2E8F0'
+    codeText: '#E2E8F0',
   },
   fonts: {
     sans: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    mono: "'Fira Code', 'Cascadia Code', monospace"
+    mono: "'Fira Code', 'Cascadia Code', monospace",
   },
   radius: {
     sm: '6px',
     md: '8px',
     lg: '12px',
-    full: '999px'
-  }
-}
+    full: '999px',
+  },
+};
