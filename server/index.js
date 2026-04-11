@@ -23,35 +23,43 @@ app.post('/api/query', async (req, res) => {
     question,
     role = 'dev',
     history = [],
-    relevance = 0.50,
-    contextWindow = 2
-  } = req.body
+    relevance = 0.5,
+    contextWindow = 2,
+  } = req.body;
 
   if (!question || question.trim().length === 0) {
-    return res.status(400).json({ error: 'Question is required' })
+    return res.status(400).json({ error: 'Question is required' });
   }
 
   if (question.trim().length > 500) {
-    return res.status(400).json({ error: 'Question too long — keep it under 500 characters' })
+    return res
+      .status(400)
+      .json({ error: 'Question too long — keep it under 500 characters' });
   }
 
   try {
-    const result = await query(question, { role, history, relevance, contextWindow })
+    const result = await query(question, {
+      role,
+      history,
+      relevance,
+      contextWindow,
+    });
 
     // Tell the frontend exactly which history messages were used
-    const contextWindow_used = history.slice(-(contextWindow * 2))
+    const contextWindow_used = history.slice(-(contextWindow * 2));
 
     res.json({
       ...result,
-      contextUsed: contextWindow_used.length > 0
-        ? { count: contextWindow_used.length, messages: contextWindow_used }
-        : null
-    })
+      contextUsed:
+        contextWindow_used.length > 0
+          ? { count: contextWindow_used.length, messages: contextWindow_used }
+          : null,
+    });
   } catch (err) {
-    console.error('Query error:', err)
-    res.status(500).json({ error: 'Something went wrong. Please try again.' })
+    console.error('Query error:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
-})
+});
 
 // Serve the frontend for all other routes
 // app.get('/{*path}', (req, res) => {

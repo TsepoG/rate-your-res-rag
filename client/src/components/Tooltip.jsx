@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
-import ReactDOM from 'react-dom'
-import styled from 'styled-components'
+import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
+import styled from 'styled-components';
 
 export function InfoIcon() {
   return (
@@ -19,23 +19,23 @@ export function InfoIcon() {
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
     </svg>
-  )
+  );
 }
 
 export default function Tooltip({ text, children }) {
-  const [visible, setVisible] = useState(false)
-  const [coords, setCoords] = useState({ top: 0, left: 0 })
-  const wrapperRef = useRef(null)
+  const [visible, setVisible] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const wrapperRef = useRef(null);
 
   function handleMouseEnter() {
     if (wrapperRef.current) {
-      const rect = wrapperRef.current.getBoundingClientRect()
+      const rect = wrapperRef.current.getBoundingClientRect();
       setCoords({
         top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX
-      })
+        left: rect.left + window.scrollX,
+      });
     }
-    setVisible(true)
+    setVisible(true);
   }
 
   return (
@@ -45,14 +45,15 @@ export default function Tooltip({ text, children }) {
       onMouseLeave={() => setVisible(false)}
     >
       {children}
-      {visible && ReactDOM.createPortal(
-        <TooltipBox style={{ top: coords.top, left: coords.left }}>
-          {text}
-        </TooltipBox>,
-        document.body
-      )}
+      {visible &&
+        ReactDOM.createPortal(
+          <TooltipBox style={{ top: coords.top, left: coords.left }}>
+            {text}
+          </TooltipBox>,
+          document.body,
+        )}
     </Wrapper>
-  )
+  );
 }
 
 const Wrapper = styled.div`
@@ -60,11 +61,11 @@ const Wrapper = styled.div`
   display: inline-flex;
   align-items: center;
   cursor: help;
-`
+`;
 
 const TooltipBox = styled.div`
   position: absolute;
-  background: #0F172A;
+  background: #0f172a;
   color: white;
   font-size: 12px;
   line-height: 1.5;
@@ -81,6 +82,6 @@ const TooltipBox = styled.div`
     bottom: 100%;
     left: 10px;
     border: 5px solid transparent;
-    border-bottom-color: #0F172A;
+    border-bottom-color: #0f172a;
   }
-`
+`;

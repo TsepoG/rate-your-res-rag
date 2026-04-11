@@ -5,7 +5,7 @@ const path = require('path');
 
 async function migrate() {
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
   });
 
   try {

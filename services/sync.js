@@ -11,13 +11,13 @@ async function runSync({ force = false } = {}) {
   const results = {
     confluence: null,
     github: null,
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
   };
 
   try {
     results.confluence = await ingestConfluenceSpace(
       process.env.CONFLUENCE_SPACE_KEY,
-      { force }
+      { force },
     );
   } catch (err) {
     console.error('Confluence sync failed:', err.message);
@@ -28,7 +28,7 @@ async function runSync({ force = false } = {}) {
     results.github = await ingestRepository(
       process.env.GITHUB_OWNER,
       process.env.GITHUB_REPO,
-      { force }
+      { force },
     );
   } catch (err) {
     console.error('GitHub sync failed:', err.message);

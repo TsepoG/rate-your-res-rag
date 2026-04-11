@@ -1,32 +1,32 @@
-import React, { useRef, useEffect } from 'react'
-import styled from 'styled-components'
+import React, { useRef, useEffect } from 'react';
+import styled from 'styled-components';
 
 export default function ChatInput({ onSend, disabled }) {
-  const textareaRef = useRef(null)
+  const textareaRef = useRef(null);
 
   useEffect(() => {
-    textareaRef.current?.focus()
-  }, [])
+    textareaRef.current?.focus();
+  }, []);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      submit()
+      e.preventDefault();
+      submit();
     }
   }
 
   function submit() {
-    const value = textareaRef.current?.value.trim()
-    if (!value || disabled) return
-    onSend(value)
-    textareaRef.current.value = ''
-    textareaRef.current.style.height = 'auto'
+    const value = textareaRef.current?.value.trim();
+    if (!value || disabled) return;
+    onSend(value);
+    textareaRef.current.value = '';
+    textareaRef.current.style.height = 'auto';
   }
 
   function handleInput() {
-    const el = textareaRef.current
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
+    const el = textareaRef.current;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
   }
 
   return (
@@ -41,38 +41,46 @@ export default function ChatInput({ onSend, disabled }) {
           disabled={disabled}
         />
         <SendBtn onClick={submit} disabled={disabled}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </SendBtn>
       </InputWrapper>
-      <Hint>Responses are based on your Confluence docs and GitHub codebase.</Hint>
+      <Hint>
+        Responses are based on your Confluence docs and GitHub codebase.
+      </Hint>
     </InputArea>
-  )
+  );
 }
 
 const InputArea = styled.div`
   padding: 16px 32px 24px;
   background: white;
-  border-top: 1px solid #E2E8F0;
-`
+  border-top: 1px solid #e2e8f0;
+`;
 
 const InputWrapper = styled.div`
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 12px 16px;
   transition: border-color 0.15s;
 
   &:focus-within {
-    border-color: #4F46E5;
+    border-color: #4f46e5;
   }
-`
+`;
 
 const Textarea = styled.textarea`
   flex: 1;
@@ -81,17 +89,21 @@ const Textarea = styled.textarea`
   outline: none;
   font-family: inherit;
   font-size: 14px;
-  color: #0F172A;
+  color: #0f172a;
   resize: none;
   max-height: 120px;
   line-height: 1.5;
 
-  &::placeholder { color: #94A3B8; }
-  &:disabled { opacity: 0.5; }
-`
+  &::placeholder {
+    color: #94a3b8;
+  }
+  &:disabled {
+    opacity: 0.5;
+  }
+`;
 
 const SendBtn = styled.button`
-  background: #4F46E5;
+  background: #4f46e5;
   color: white;
   border: none;
   border-radius: 8px;
@@ -104,13 +116,18 @@ const SendBtn = styled.button`
   flex-shrink: 0;
   transition: background 0.15s;
 
-  &:hover:not(:disabled) { background: #3730A3; }
-  &:disabled { background: #E2E8F0; cursor: not-allowed; }
-`
+  &:hover:not(:disabled) {
+    background: #3730a3;
+  }
+  &:disabled {
+    background: #e2e8f0;
+    cursor: not-allowed;
+  }
+`;
 
 const Hint = styled.p`
   font-size: 11px;
-  color: #94A3B8;
+  color: #94a3b8;
   margin-top: 8px;
   text-align: center;
-`
+`;

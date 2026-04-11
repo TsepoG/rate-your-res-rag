@@ -7,12 +7,14 @@ async function embed(text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: EMBED_MODEL,
-      prompt: text
-    })
+      prompt: text,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Embedding failed: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Embedding failed: ${response.status} ${response.statusText}`,
+    );
   }
 
   const data = await response.json();
@@ -27,7 +29,9 @@ async function embedBatch(texts, batchSize = 20) {
     const batchVectors = await Promise.all(batch.map(embed));
     vectors.push(...batchVectors);
 
-    console.log(`Embedded ${Math.min(i + batchSize, texts.length)}/${texts.length} chunks`);
+    console.log(
+      `Embedded ${Math.min(i + batchSize, texts.length)}/${texts.length} chunks`,
+    );
   }
 
   return vectors;
