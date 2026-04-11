@@ -156,16 +156,16 @@ const ChatInner = styled.div`
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-`;
+  flex: 1;
+  position: relative;
+`
 
 const Welcome = styled.div`
   text-align: center;
   max-width: 480px;
   position: absolute;
   top: 42%;
-  left: 55%;
+  left: 50%;
   transform: translate(-50%, -50%);
 
   h1 {
