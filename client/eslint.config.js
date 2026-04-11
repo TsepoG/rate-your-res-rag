@@ -3,8 +3,28 @@ const reactPlugin = require('eslint-plugin-react')
 const reactHooks = require('eslint-plugin-react-hooks')
 
 module.exports = [
-  js.configs.recommended,
   {
+    ...js.configs.recommended,
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        Promise: 'readonly',
+        URL: 'readonly'
+      },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
+    },
     plugins: {
       react: reactPlugin,
       'react-hooks': reactHooks
