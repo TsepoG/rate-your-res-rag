@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-and-build:
+    name: Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: cd client && npm ci
+
+      - name: Lint client
+        run: cd client && npx eslint src --ext .js,.jsx --max-warnings 0
+
+      - name: Build client
+        run: cd client && npx vite build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
