@@ -1,8 +1,8 @@
-import js from '@eslint/js'
-import reactPlugin from 'eslint-plugin-react'
-import reactHooks from 'eslint-plugin-react-hooks'
+const js = require('@eslint/js')
+const reactPlugin = require('eslint-plugin-react')
+const reactHooks = require('eslint-plugin-react-hooks')
 
-export default [
+module.exports = [
   js.configs.recommended,
   {
     plugins: {
