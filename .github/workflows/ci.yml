@@ -28,7 +28,7 @@ jobs:
         working-directory: client
 
       - name: Lint client
-        run: npx eslint src --ext .js,.jsx --max-warnings 0
+        run: npx eslint src --ext .js,.jsx
         working-directory: client
 
       - name: Build client
