@@ -67,10 +67,6 @@ Follow-up question: ${userQuery}`
   return response.content[0].text.trim().split('\n').filter(q => q.trim());
 }
 
-function filterByRelevance(chunks, threshold = 0.50) {
-  return chunks.filter(chunk => chunk.similarity >= threshold);
-}
-
 function buildContext(docs, code) {
   let context = '';
 
@@ -150,61 +146,68 @@ When answering:
 }
 
 async function query(userQuery, options = {}) {
-  const { role = 'dev', history = [] } = options;
-  console.log(`\nQuery: ${userQuery} [role: ${role}, history: ${history.length} messages]`);
+  const {
+    role = 'dev',
+    history = [],
+    relevance = 0.50,
+    contextWindow = 2
+  } = options
 
-  // Step 1 — Resolve query in context of conversation history
-  const rewrittenQueries = await resolveQuery(userQuery, history);
-  console.log(`Resolved queries:`, rewrittenQueries);
+  console.log(`\nQuery: ${userQuery} [role: ${role}, relevance: ${relevance}, context: ${contextWindow}]`)
 
-  // Step 2 — Embed and retrieve for each rewritten query
-  const allDocs = new Map();
-  const allCode = new Map();
+  // Use contextWindow to determine how much history to pass
+  const trimmedHistory = history.slice(-(contextWindow * 2))
+
+  const rewrittenQueries = await resolveQuery(userQuery, trimmedHistory)
+  console.log(`Resolved queries:`, rewrittenQueries)
+
+  const allDocs = new Map()
+  const allCode = new Map()
 
   for (const rewritten of rewrittenQueries) {
-    const queryVector = await embed(rewritten);
+    const queryVector = await embed(rewritten)
     const { docs, code } = await retrieveRelevantChunks(queryVector, {
       ...options,
       limit: 8
-    });
+    })
 
     docs.forEach(doc => {
-      const key = doc.page_title + doc.content.slice(0, 50);
+      const key = doc.page_title + doc.content.slice(0, 50)
       if (!allDocs.has(key) || allDocs.get(key).similarity < doc.similarity) {
-        allDocs.set(key, doc);
+        allDocs.set(key, doc)
       }
-    });
+    })
 
     code.forEach(chunk => {
-      const key = chunk.file_path + chunk.function_name;
+      const key = chunk.file_path + chunk.function_name
       if (!allCode.has(key) || allCode.get(key).similarity < chunk.similarity) {
-        allCode.set(key, chunk);
+        allCode.set(key, chunk)
       }
-    });
+    })
   }
 
-  // Step 3 — Filter and sort
-  const relevantDocs = filterByRelevance([...allDocs.values()])
+  // Use user's relevance setting
+  const relevantDocs = [...allDocs.values()]
+    .filter(chunk => chunk.similarity >= relevance)
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, 5);
+    .slice(0, 5)
 
-  const relevantCode = filterByRelevance([...allCode.values()])
+  const relevantCode = [...allCode.values()]
+    .filter(chunk => chunk.similarity >= relevance)
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, 5);
+    .slice(0, 5)
 
-  console.log(`Retrieved: ${relevantDocs.length} docs, ${relevantCode.length} code chunks`);
+  console.log(`Retrieved: ${relevantDocs.length} docs, ${relevantCode.length} code chunks`)
 
-  // Step 4 — Handle no results
   if (relevantDocs.length === 0 && relevantCode.length === 0) {
     return {
-      answer: "I couldn't find anything relevant in the documentation or codebase for that question. Try rephrasing or check that the relevant content has been indexed.",
+      answer: "I couldn't find anything relevant in the documentation or codebase for that question. Try rephrasing, or consider lowering the relevance filter in the sidebar.",
       sources: { docs: [], code: [] }
-    };
+    }
   }
 
-  // Step 5 — Build context and ask Claude with history
-  const context = buildContext(relevantDocs, relevantCode);
-  const answer = await askClaude(userQuery, context, role, history);
+  const context = buildContext(relevantDocs, relevantCode)
+  const answer = await askClaude(userQuery, context, role, trimmedHistory)
 
   return {
     answer,
@@ -220,7 +223,7 @@ async function query(userQuery, options = {}) {
         similarity: Math.round(c.similarity * 100) / 100
       }))
     }
-  };
+  }
 }
 
 module.exports = { query };

@@ -1,5 +1,6 @@
-import React from 'react';
-import styled from 'styled-components';
+import React from 'react'
+import styled from 'styled-components'
+import Tooltip, { InfoIcon } from './Tooltip'
 
 const ROLES = [
   { id: 'dev', label: 'Developer' },
@@ -7,7 +8,7 @@ const ROLES = [
   { id: 'po', label: 'Product Owner' },
   { id: 'qa', label: 'QA Engineer' },
   { id: 'pm', label: 'Project Manager' }
-];
+]
 
 const SUGGESTIONS = {
   dev: [
@@ -35,9 +36,22 @@ const SUGGESTIONS = {
     'What is the CI/CD pipeline?',
     'What phases have been completed?'
   ]
-};
+}
 
-export default function Sidebar({ role, onRoleChange, onSuggestionClick, onClear }) {
+const TOOLTIPS = {
+  role: `Your role shapes how answers are written. Developers get technical detail and code references. Business Analysts and Product Owners get plain English focused on what the system does. QA gets edge cases and validation rules. Project Managers get status and progress summaries.`,
+
+  relevance: `Controls how closely a source must match your question before it's used as context. Higher values mean only very relevant sources are used — answers may be more precise but could miss some context. Lower values cast a wider net — more sources are included but some may be loosely related.`,
+
+  contextWindow: `How many previous exchanges the assistant remembers when answering follow-up questions. More exchanges means better continuity in long conversations, but may slow responses slightly. Set to 1 if you want each question treated independently.`
+}
+
+export default function Sidebar({
+  role, onRoleChange,
+  relevance, onRelevanceChange,
+  contextWindow, onContextWindowChange,
+  onSuggestionClick, onClear
+}) {
   return (
     <SidebarWrapper>
       <Header>
@@ -49,7 +63,12 @@ export default function Sidebar({ role, onRoleChange, onSuggestionClick, onClear
       </Header>
 
       <Section>
-        <SectionLabel>I am a</SectionLabel>
+        <SectionHeader>
+          <SectionLabel>I am a</SectionLabel>
+          <Tooltip text={TOOLTIPS.role}>
+            <IconWrapper><InfoIcon /></IconWrapper>
+          </Tooltip>
+        </SectionHeader>
         <RoleList>
           {ROLES.map(r => (
             <RoleBtn
@@ -61,6 +80,56 @@ export default function Sidebar({ role, onRoleChange, onSuggestionClick, onClear
             </RoleBtn>
           ))}
         </RoleList>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionLabel>Relevance filter</SectionLabel>
+          <Tooltip text={TOOLTIPS.relevance}>
+            <IconWrapper><InfoIcon /></IconWrapper>
+          </Tooltip>
+        </SectionHeader>
+        <SliderRow>
+          <Slider
+            type="range"
+            min="0.4"
+            max="0.8"
+            step="0.05"
+            value={relevance}
+            onChange={e => onRelevanceChange(parseFloat(e.target.value))}
+          />
+          <SliderValue>{relevance.toFixed(2)}</SliderValue>
+        </SliderRow>
+        <SliderLabels>
+          <span>Broader</span>
+          <span>Stricter</span>
+        </SliderLabels>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionLabel>Conversation context</SectionLabel>
+          <Tooltip text={TOOLTIPS.contextWindow}>
+            <IconWrapper><InfoIcon /></IconWrapper>
+          </Tooltip>
+        </SectionHeader>
+        <SliderRow>
+          <Slider
+            type="range"
+            min="1"
+            max="5"
+            step="1"
+            value={contextWindow}
+            onChange={e => onContextWindowChange(parseInt(e.target.value))}
+          />
+          <SliderValue>
+            {contextWindow} {contextWindow === 1 ? 'exchange' : 'exchanges'}
+          </SliderValue>
+        </SliderRow>
+        <SliderLabels>
+          <span>Independent</span>
+          <span>More memory</span>
+        </SliderLabels>
       </Section>
 
       <Section style={{ flex: 1 }}>
@@ -77,7 +146,7 @@ export default function Sidebar({ role, onRoleChange, onSuggestionClick, onClear
       <ClearBtn onClick={onClear}>Clear conversation</ClearBtn>
     </SidebarWrapper>
   )
-};
+}
 
 const SidebarWrapper = styled.aside`
   width: 280px;
@@ -87,18 +156,20 @@ const SidebarWrapper = styled.aside`
   flex-direction: column;
   padding: 24px 16px;
   flex-shrink: 0;
-`;
+  overflow-x: visible;
+  overflow-y: auto;
+`
 
 const Header = styled.div`
   margin-bottom: 32px;
-`;
+`
 
 const Logo = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
-`;
+`
 
 const LogoIcon = styled.div`
   width: 32px;
@@ -111,38 +182,53 @@ const LogoIcon = styled.div`
   justify-content: center;
   font-weight: 700;
   font-size: 16px;
-`;
+`
 
 const LogoText = styled.span`
   font-size: 16px;
   font-weight: 700;
-`;
+`
 
 const LogoSub = styled.p`
   font-size: 12px;
   color: #64748B;
   margin-left: 42px;
-`;
+`
 
 const Section = styled.div`
-  margin-bottom: 28px;
-`;
+  margin-bottom: 24px;
+`
+
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+`
 
 const SectionLabel = styled.label`
-  display: block;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #64748B;
-  margin-bottom: 10px;
-`;
+`
+
+const IconWrapper = styled.div`
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    color: #4F46E5;
+  }
+`
 
 const RoleList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-`;
+`
 
 const RoleBtn = styled.button`
   background: ${p => p.$active ? '#4F46E5' : 'none'};
@@ -161,13 +247,42 @@ const RoleBtn = styled.button`
     color: ${p => p.$active ? 'white' : '#4F46E5'};
     background: ${p => p.$active ? '#4F46E5' : '#EEF2FF'};
   }
-`;
+`
+
+const SliderRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const Slider = styled.input`
+  flex: 1;
+  height: 4px;
+  accent-color: #4F46E5;
+  cursor: pointer;
+`
+
+const SliderValue = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: #4F46E5;
+  min-width: 72px;
+  text-align: right;
+`
+
+const SliderLabels = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94A3B8;
+  margin-top: 4px;
+`
 
 const SuggestionList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-`;
+`
 
 const SuggestionBtn = styled.button`
   background: #F8FAFC;
@@ -186,7 +301,7 @@ const SuggestionBtn = styled.button`
     color: #4F46E5;
     background: #EEF2FF;
   }
-`;
+`
 
 const ClearBtn = styled.button`
   margin-top: auto;
@@ -204,4 +319,4 @@ const ClearBtn = styled.button`
     border-color: #EF4444;
     color: #EF4444;
   }
-`;
+`

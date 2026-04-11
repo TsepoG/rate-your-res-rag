@@ -1,6 +1,6 @@
 const API_URL = '/api'
 
-export async function sendQuery(question, role, history = []) {
+export async function sendQuery(question, role, history = [], settings = {}) {
   const res = await fetch(`${API_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -10,7 +10,9 @@ export async function sendQuery(question, role, history = []) {
       history: history.map(m => ({
         role: m.role,
         content: m.content
-      }))
+      })),
+      relevance: settings.relevance ?? 0.50,
+      contextWindow: settings.contextWindow ?? 2
     })
   })
 
