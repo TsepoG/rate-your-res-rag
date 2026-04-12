@@ -26,8 +26,8 @@ async function runSync({ force = false } = {}) {
 
   try {
     results.github = await ingestRepository(
-      process.env.GITHUB_OWNER,
-      process.env.GITHUB_REPO,
+      process.env.GH_OWNER,
+      process.env.GH_REPO,
       { force },
     );
   } catch (err) {
