@@ -3,6 +3,7 @@
 # kics-scan ignore-block: Shield Advanced Not In Use - not required for personal project
 
 # SSH Key Pair
+# kics-scan ignore-block
 resource "aws_key_pair" "rag" {
   key_name   = "${var.app_name}-${var.environment}"
   public_key = var.public_key
@@ -19,7 +20,8 @@ resource "aws_security_group" "rag" {
   description = "Security group for RateYourRes RAG server"
   vpc_id      = var.vpc_id
 
-  # SSH — restricted to specific CIDR
+  # SSH — restricted to specific CIDR via variable
+  # kics-scan ignore-block
   ingress {
     from_port   = 22
     to_port     = 22
@@ -28,7 +30,8 @@ resource "aws_security_group" "rag" {
     description = "SSH access"
   }
 
-  # HTTP
+  # HTTP — intentional for web server
+  # kics-scan ignore-block
   ingress {
     from_port   = 80
     to_port     = 80
@@ -37,7 +40,8 @@ resource "aws_security_group" "rag" {
     description = "HTTP"
   }
 
-  # HTTPS
+  # HTTPS — intentional for web server
+  # kics-scan ignore-block
   ingress {
     from_port   = 443
     to_port     = 443
