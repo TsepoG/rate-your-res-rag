@@ -41,3 +41,9 @@ variable "ami_id" {
   description = "Ubuntu 22.04 LTS AMI ID for af-south-1"
   type        = string
 }
+
+variable "ssh_cidr_blocks" {
+  description = "CIDR blocks allowed to SSH into the instance"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

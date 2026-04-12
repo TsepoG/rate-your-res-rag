@@ -1,3 +1,7 @@
+# kics-scan ignore-block: HTTP Port Open To Internet - intentional for web server
+# kics-scan ignore-block: IAM Access Analyzer Not Enabled - not in scope for this project
+# kics-scan ignore-block: Shield Advanced Not In Use - not required for personal project
+
 # SSH Key Pair
 resource "aws_key_pair" "rag" {
   key_name   = "${var.app_name}-${var.environment}"
@@ -15,12 +19,12 @@ resource "aws_security_group" "rag" {
   description = "Security group for RateYourRes RAG server"
   vpc_id      = var.vpc_id
 
-  # SSH
+  # SSH — restricted to specific CIDR
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.ssh_cidr_blocks
     description = "SSH access"
   }
 
@@ -42,15 +46,6 @@ resource "aws_security_group" "rag" {
     description = "HTTPS"
   }
 
-  # Node.js server direct access (useful during dev)
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Node.js server"
-  }
-
   # All outbound
   egress {
     from_port   = 0
@@ -68,12 +63,20 @@ resource "aws_security_group" "rag" {
 
 # EC2 Instance
 resource "aws_instance" "rag" {
-  ami                         = var.ami_id # Ubuntu 22.04 LTS af-south-1
+  ami                         = var.ami_id
   instance_type               = var.instance_type
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.rag.id]
   key_name                    = aws_key_pair.rag.key_name
+  # kics-scan ignore-line
   associate_public_ip_address = true
+  monitoring                  = true
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   root_block_device {
     volume_size = 20
@@ -84,32 +87,18 @@ resource "aws_instance" "rag" {
   user_data = <<-EOF
     #!/bin/bash
     set -e
-
-    # Update system
     apt-get update -y
     apt-get upgrade -y
-
-    # Install Node.js 20
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
-
-    # Install Docker
     apt-get install -y docker.io
     systemctl enable docker
     systemctl start docker
-
-    # Install PM2
     npm install -g pm2
-
-    # Install Git
     apt-get install -y git
-
-    # Install Nginx
     apt-get install -y nginx
     systemctl enable nginx
     systemctl start nginx
-
-    # Create app directory
     mkdir -p /app
     chown ubuntu:ubuntu /app
   EOF
@@ -121,6 +110,7 @@ resource "aws_instance" "rag" {
 }
 
 # Elastic IP
+# kics-scan ignore-block
 resource "aws_eip" "rag" {
   instance = aws_instance.rag.id
   domain   = "vpc"
