@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tag:
+    name: Create release tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          LATEST=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          if [ -z "$LATEST" ]; then
+            LATEST="v0.0.0"
+          fi
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          LATEST=${{ steps.get_tag.outputs.latest }}
+          MAJOR=$(echo $LATEST | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo $LATEST | cut -d. -f2)
+          PATCH=$(echo $LATEST | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v$MAJOR.$MINOR.$NEW_PATCH"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "New tag: $NEW_TAG"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.bump.outputs.new_tag }}
+          git push origin ${{ steps.bump.outputs.new_tag }}
+
+      - name: Create GitHub release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        with:
+          tag_name: ${{ steps.bump.outputs.new_tag }}
+          release_name: ${{ steps.bump.outputs.new_tag }}
+          body: |
+            Automated release ${{ steps.bump.outputs.new_tag }}
+            
+            Merged to main — ready for deployment to staging.
+          draft: false
+          prerelease: false
