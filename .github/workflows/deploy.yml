@@ -1,0 +1,218 @@
+name: Deploy
+
+on:
+  # Auto deploy to dev after release
+  release:
+    types: [published]
+
+  # Manual deploy to dev or staging
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy (e.g. v0.1.2)'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+
+jobs:
+  setup:
+    name: Set deployment variables
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.vars.outputs.environment }}
+      tag: ${{ steps.vars.outputs.tag }}
+
+    steps:
+      - name: Set variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+  terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: setup
+    environment: ${{ needs.setup.outputs.environment }}
+
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="key=rag/${{ needs.setup.outputs.environment }}/terraform.tfstate"
+        working-directory: infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var="app_name=rateyourres-rag" \
+            -var="environment=${{ needs.setup.outputs.environment }}" \
+            -var="aws_region=af-south-1" \
+            -var="instance_type=t3.micro" \
+            -out=tfplan
+        working-directory: infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          TF_VAR_vpc_id: ${{ secrets.TF_VAR_vpc_id }}
+          TF_VAR_subnet_id: ${{ secrets.TF_VAR_subnet_id }}
+          TF_VAR_ami_id: ${{ secrets.TF_VAR_ami_id }}
+          TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
+
+      - name: Terraform Apply
+        run: terraform apply tfplan
+        working-directory: infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Get EC2 public IP
+        id: ec2
+        run: |
+          IP=$(terraform output -raw public_ip)
+          echo "public_ip=$IP" >> $GITHUB_OUTPUT
+        working-directory: infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    outputs:
+      public_ip: ${{ steps.ec2.outputs.public_ip }}
+
+  deploy-app:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [setup, terraform]
+    environment: ${{ needs.setup.outputs.environment }}
+
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag
+          chmod 600 ~/.ssh/rate-your-res-rag
+          ssh-keyscan -H ${{ needs.terraform.outputs.public_ip }} >> ~/.ssh/known_hosts
+
+      - name: Wait for EC2 to be ready
+        run: |
+          echo "Waiting for EC2 to be reachable..."
+          for i in {1..20}; do
+            if ssh -i ~/.ssh/rate-your-res-rag \
+              -o StrictHostKeyChecking=no \
+              ubuntu@${{ needs.terraform.outputs.public_ip }} \
+              "echo ready" 2>/dev/null; then
+              echo "EC2 is ready"
+              break
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
+
+              # Clone or pull latest code
+              if [ -d "/app/.git" ]; then
+                cd /app
+                git fetch --tags
+                git checkout ${{ needs.setup.outputs.tag }}
+              else
+                git clone https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git /app
+                cd /app
+                git checkout ${{ needs.setup.outputs.tag }}
+              fi
+
+              # Install dependencies
+              cd /app
+              npm ci --omit=dev
+
+              # Write .env file
+              cat > /app/.env << 'EOF'
+              DATABASE_URL=${{ secrets.DATABASE_URL }}
+              ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+              CONFLUENCE_EMAIL=${{ secrets.CONFLUENCE_EMAIL }}
+              CONFLUENCE_API_TOKEN=${{ secrets.CONFLUENCE_API_TOKEN }}
+              CONFLUENCE_BASE_URL=${{ secrets.CONFLUENCE_BASE_URL }}
+              CONFLUENCE_SPACE_KEY=${{ secrets.CONFLUENCE_SPACE_KEY }}
+              GH_TOKEN=${{ secrets.GH_TOKEN }}
+              GH_OWNER=${{ secrets.GH_OWNER }}
+              GH_REPO=${{ secrets.GH_REPO }}
+              OLLAMA_URL=${{ secrets.OLLAMA_URL }}
+              PORT=3000
+              EOF
+
+              # Run database migrations
+              npm run migrate
+
+              # Start or restart with PM2
+              if pm2 list | grep -q "rag-server"; then
+                pm2 restart rag-server
+              else
+                pm2 start server/index.js --name rag-server
+                pm2 save
+                pm2 startup | tail -1 | bash
+              fi
+          ENDSSH
+
+  sync:
+    name: Sync Knowledge Base
+    runs-on: ubuntu-latest
+    needs: [setup, terraform, deploy-app]
+    if: needs.setup.outputs.environment == 'staging'
+    environment: ${{ needs.setup.outputs.environment }}
+
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag
+          chmod 600 ~/.ssh/rate-your-res-rag
+          ssh-keyscan -H ${{ needs.terraform.outputs.public_ip }} >> ~/.ssh/known_hosts
+
+      - name: Run sync on EC2
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              cd /app
+              npm run sync
+          ENDSSH

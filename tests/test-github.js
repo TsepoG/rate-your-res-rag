@@ -4,8 +4,8 @@ const { ingestRepository } = require('../ingestion/github');
 async function test() {
   console.log('Starting GitHub ingestion...');
   await ingestRepository(
-    process.env.GITHUB_OWNER,
-    process.env.GITHUB_REPO
+    process.env.GH_OWNER,
+    process.env.GH_REPO
   );
   console.log('Done!');
 }
