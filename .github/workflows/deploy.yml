@@ -179,13 +179,37 @@ jobs:
               # Run database migrations
               npm run migrate
 
-              # Start or restart with PM2
-              if pm2 list | grep -q "rag-server"; then
-                pm2 restart rag-server
+              # Create systemd service if it doesn't exist
+              if [ ! -f /etc/systemd/system/rag-server.service ]; then
+                sudo tee /etc/systemd/system/rag-server.service > /dev/null << 'SERVICE'
+              [Unit]
+              Description=RateYourRes RAG Server
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=ubuntu
+              WorkingDirectory=/app
+              ExecStart=/usr/bin/node server/index.js
+              Restart=always
+              RestartSec=10
+              StandardOutput=syslog
+              StandardError=syslog
+              SyslogIdentifier=rag-server
+              EnvironmentFile=/app/.env
+
+              [Install]
+              WantedBy=multi-user.target
+              SERVICE
+                sudo systemctl daemon-reload
+                sudo systemctl enable rag-server
+              fi
+
+              # Start or restart the app
+              if systemctl is-active --quiet rag-server; then
+                sudo systemctl restart rag-server
               else
-                pm2 start server/index.js --name rag-server
-                pm2 save
-                pm2 startup | tail -1 | bash
+                sudo systemctl start rag-server
               fi
           ENDSSH
 
