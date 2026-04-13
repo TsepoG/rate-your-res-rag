@@ -157,12 +157,19 @@ jobs:
                 git checkout ${{ needs.setup.outputs.tag }}
               fi
 
-              # Install dependencies
+              # Install all dependencies including dev for build
               cd /app
+              npm ci
+
+              # Build React frontend
+              npm run build
+
+              # Remove dev dependencies after build
               npm ci --omit=dev
 
               # Write .env file
               cat > /app/.env << 'EOF'
+              NODE_ENV=production
               DATABASE_URL=${{ secrets.DATABASE_URL }}
               ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
               CONFLUENCE_EMAIL=${{ secrets.CONFLUENCE_EMAIL }}

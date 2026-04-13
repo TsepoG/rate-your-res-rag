@@ -10,7 +10,15 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-// app.use(express.static(path.join(__dirname, 'public')));
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  // Serve the frontend for all other routes
+  app.get('/{*path}', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/index.html'));
+  });
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -60,11 +68,6 @@ app.post('/api/query', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
-
-// Serve the frontend for all other routes
-// app.get('/{*path}', (req, res) => {
-//   res.sendFile(path.join(__dirname, 'public/index.html'));
-// });
 
 // Start server
 const server = app.listen(PORT, () => {
