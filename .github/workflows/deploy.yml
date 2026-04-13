@@ -119,16 +119,17 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag
-          chmod 600 ~/.ssh/rate-your-res-rag
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag-deploy
+          chmod 600 ~/.ssh/rate-your-res-rag-deploy
           ssh-keyscan -H ${{ needs.terraform.outputs.public_ip }} >> ~/.ssh/known_hosts
 
       - name: Wait for EC2 to be ready
         run: |
           echo "Waiting for EC2 to be reachable..."
-          for i in {1..20}; do
-            if ssh -i ~/.ssh/rate-your-res-rag \
+          for i in {1..30}; do
+            if ssh -i ~/.ssh/rate-your-res-rag-deploy \
               -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=10 \
               ubuntu@${{ needs.terraform.outputs.public_ip }} \
               "echo ready" 2>/dev/null; then
               echo "EC2 is ready"
@@ -140,7 +141,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -i ~/.ssh/rate-your-res-rag \
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
             -o StrictHostKeyChecking=no \
             ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
               set -e
@@ -204,13 +205,13 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag
-          chmod 600 ~/.ssh/rate-your-res-rag
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/rate-your-res-rag-deploy
+          chmod 600 ~/.ssh/rate-your-res-rag-deploy
           ssh-keyscan -H ${{ needs.terraform.outputs.public_ip }} >> ~/.ssh/known_hosts
 
       - name: Run sync on EC2
         run: |
-          ssh -i ~/.ssh/rate-your-res-rag \
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
             -o StrictHostKeyChecking=no \
             ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
               cd /app
