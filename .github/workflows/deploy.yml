@@ -242,6 +242,12 @@ jobs:
               else
                 sudo systemctl start rag-server
               fi
+
+              # Wait for app to be ready
+              sleep 5
+
+              # Run initial sync if this is a fresh environment
+              npm run sync:check
           ENDSSH
 
   sync:

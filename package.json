@@ -11,7 +11,8 @@
     "build": "cd client && vite build",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "migrate": "node db/migrate.js",
-    "sync": "node scripts/sync.js"
+    "sync": "node scripts/sync.js",
+    "sync:check": "node scripts/sync.js --check-first"
   },
   "repository": {
     "type": "git",
