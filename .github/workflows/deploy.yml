@@ -186,6 +186,30 @@ jobs:
               # Run database migrations
               npm run migrate
 
+              # Configure Nginx as reverse proxy
+              sudo tee /etc/nginx/sites-available/rateyourres-rag > /dev/null << 'NGINX'
+              server {
+                  listen 80;
+                  server_name _;
+
+                  location / {
+                      proxy_pass http://localhost:3000;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection 'upgrade';
+                      proxy_set_header Host $host;
+                      proxy_cache_bypass $http_upgrade;
+                  }
+              }
+              NGINX
+
+              if [ ! -f /etc/nginx/sites-enabled/rateyourres-rag ]; then
+                sudo ln -s /etc/nginx/sites-available/rateyourres-rag /etc/nginx/sites-enabled/
+                sudo rm -f /etc/nginx/sites-enabled/default
+              fi
+
+              sudo nginx -t && sudo systemctl reload nginx
+
               # Create systemd service if it doesn't exist
               if [ ! -f /etc/systemd/system/rag-server.service ]; then
                 sudo tee /etc/systemd/system/rag-server.service > /dev/null << 'SERVICE'
