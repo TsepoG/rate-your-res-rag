@@ -171,7 +171,13 @@ jobs:
               cat > /app/.env << 'EOF'
               NODE_ENV=production
               DATABASE_URL=${{ secrets.DATABASE_URL }}
-              ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+              AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              AWS_REGION_CLAUDE=${{ secrets.AWS_REGION_CLAUDE }}
+              AWS_REGION_TITAN=${{ secrets.AWS_REGION_TITAN }}
+              BEDROCK_CLAUDE_MODEL=${{ secrets.BEDROCK_CLAUDE_MODEL }}
+              BEDROCK_HAIKU_MODEL=${{ secrets.BEDROCK_HAIKU_MODEL }}
+              BEDROCK_EMBED_MODEL=${{ secrets.BEDROCK_EMBED_MODEL }}
               CONFLUENCE_EMAIL=${{ secrets.CONFLUENCE_EMAIL }}
               CONFLUENCE_API_TOKEN=${{ secrets.CONFLUENCE_API_TOKEN }}
               CONFLUENCE_BASE_URL=${{ secrets.CONFLUENCE_BASE_URL }}
@@ -179,7 +185,6 @@ jobs:
               GH_TOKEN=${{ secrets.GH_TOKEN }}
               GH_OWNER=${{ secrets.GH_OWNER }}
               GH_REPO=${{ secrets.GH_REPO }}
-              OLLAMA_URL=${{ secrets.OLLAMA_URL }}
               PORT=3000
               EOF
 

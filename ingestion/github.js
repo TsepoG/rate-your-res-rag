@@ -3,9 +3,15 @@ const axios = require('axios');
 const { getSyncState, upsertSyncState } = require('../services/syncState');
 const { embed } = require('../services/embedder');
 const { storeCodeChunk } = require('../services/vectorStore');
-const Anthropic = require('@anthropic-ai/sdk');
+const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 
-const client = new Anthropic();
+const bedrockClient = new BedrockRuntimeClient({
+  region: process.env.AWS_REGION_CLAUDE,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
+});
 
 const githubClient = axios.create({
   baseURL: 'https://api.github.com',
@@ -194,19 +200,27 @@ function chunkByFunctions(content, filePath, repo) {
 }
 
 async function generateSummary(code, filePath) {
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const body = JSON.stringify({
+    anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 150,
-    messages: [
-      {
-        role: 'user',
-        content: `In 2-3 sentences, describe what this code does in plain English. Focus on business purpose not implementation details. File: ${filePath}
+    messages: [{
+      role: 'user',
+      content: `In 2-3 sentences, describe what this code does in plain English. Focus on business purpose not implementation details. File: ${filePath}
 
-${code.slice(0, 1000)}`,
-      },
-    ],
+${code.slice(0, 1000)}`
+    }]
   });
-  return response.content[0].text;
+
+  const command = new InvokeModelCommand({
+    modelId: process.env.BEDROCK_HAIKU_MODEL,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body
+  });
+
+  const response = await bedrockClient.send(command);
+  const result = JSON.parse(Buffer.from(response.body).toString('utf8'));
+  return result.content[0].text;
 }
 
 async function ingestRepository(owner, repo, { force = false } = {}) {

@@ -1,9 +1,18 @@
 require('dotenv').config();
-const Anthropic = require('@anthropic-ai/sdk');
 const { embed } = require('./embedder');
 const { retrieveRelevantChunks } = require('./vectorStore');
+const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime')
 
-const client = new Anthropic();
+const claudeClient = new BedrockRuntimeClient({
+  region: process.env.AWS_REGION_CLAUDE,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
+});
+
+const CLAUDE_MODEL = process.env.BEDROCK_CLAUDE_MODEL;
+const HAIKU_MODEL = process.env.BEDROCK_HAIKU_MODEL;
 
 const ROLES = {
   dev: {
@@ -31,53 +40,57 @@ const ROLES = {
 async function resolveQuery(userQuery, history = []) {
   // If no history, just do a simple rewrite
   if (history.length === 0) {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const body = JSON.stringify({
+      anthropic_version: 'bedrock-2023-05-31',
       max_tokens: 200,
-      messages: [
-        {
-          role: 'user',
-          content: `Rewrite this question as 3 different keyword-rich search queries optimised for retrieving relevant code and documentation. Return only the 3 queries, one per line, nothing else.
+      messages: [{
+        role: 'user',
+        content: `Rewrite this question as 3 different keyword-rich search queries optimised for retrieving relevant code and documentation. Return only the 3 queries, one per line, nothing else. Question: ${userQuery}`
+      }]
+    })
 
-Question: ${userQuery}`,
-        },
-      ],
-    });
-    return response.content[0].text
-      .trim()
-      .split('\n')
-      .filter((q) => q.trim());
+    const command = new InvokeModelCommand({
+      modelId: HAIKU_MODEL,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body
+    })
+
+    const response = await claudeClient.send(command)
+    const result = JSON.parse(Buffer.from(response.body).toString('utf8'))
+    return result.content[0].text.trim().split('\n').filter(q => q.trim())
   }
 
   // With history, resolve the question in context first
   const historyText = history
     .slice(-4) // last 2 exchanges
-    .map(
-      (m) =>
-        `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 300)}`,
-    )
-    .join('\n');
+    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 300)}`)
+    .join('\n')
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const body = JSON.stringify({
+    anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 200,
-    messages: [
-      {
-        role: 'user',
-        content: `Given this conversation history:
+    messages: [{
+      role: 'user',
+      content: `Given this conversation history:
 ${historyText}
 
 Rewrite the follow-up question as 3 standalone, keyword-rich search queries that make sense without the conversation context. Return only the 3 queries, one per line, nothing else.
 
-Follow-up question: ${userQuery}`,
-      },
-    ],
-  });
+Follow-up question: ${userQuery}`
+    }]
+  })
 
-  return response.content[0].text
-    .trim()
-    .split('\n')
-    .filter((q) => q.trim());
+  const command = new InvokeModelCommand({
+    modelId: HAIKU_MODEL,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body
+  })
+
+  const response = await claudeClient.send(command)
+  const result = JSON.parse(Buffer.from(response.body).toString('utf8'))
+  return result.content[0].text.trim().split('\n').filter(q => q.trim())
 }
 
 function buildContext(docs, code) {
@@ -111,13 +124,11 @@ async function askClaude(userQuery, context, role = 'dev', history = []) {
   const recentHistory = history.slice(-6); // 3 user + 3 assistant messages
 
   const messages = [
-    // Previous conversation turns
-    ...recentHistory.map((m) => ({
+    ...recentHistory.map(m => ({
       role: m.role,
-      content:
-        m.role === 'assistant'
-          ? m.content.slice(0, 500) // truncate long assistant messages
-          : m.content,
+      content: m.role === 'assistant'
+        ? m.content.slice(0, 500) // truncate long assistant messages
+        : m.content
     })),
     // Current question with retrieved context
     {
@@ -128,12 +139,12 @@ ${context}
 
 ---
 
-Question: ${userQuery}`,
-    },
-  ];
+Question: ${userQuery}`
+    }
+  ]
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+  const body = JSON.stringify({
+    anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 1024,
     system: `You are an expert assistant for the RateYourRes project — a South African university residence rating platform.
 
@@ -152,11 +163,19 @@ When answering:
 - Always cite which source supports each part of your answer using plain language
 - If the context does not contain enough information, say so simply
 - Never use raw file paths or function names when answering for non-developer roles`,
-
-    messages,
+    messages
   });
 
-  return response.content[0].text;
+  const command = new InvokeModelCommand({
+    modelId: CLAUDE_MODEL,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body
+  });
+
+  const response = await claudeClient.send(command);
+  const result = JSON.parse(Buffer.from(response.body).toString('utf8'));
+  return result.content[0].text;
 }
 
 async function query(userQuery, options = {}) {
