@@ -178,6 +178,15 @@ When answering:
   return result.content[0].text;
 }
 
+function isThrottlingError(err) {
+  return (
+    err.name === 'ThrottlingException' ||
+    err.message?.includes('Too many tokens') ||
+    err.message?.includes('Too many requests') ||
+    err.$metadata?.httpStatusCode === 429
+  );
+};
+
 async function query(userQuery, options = {}) {
   const {
     role = 'dev',
@@ -193,14 +202,32 @@ async function query(userQuery, options = {}) {
   // Use contextWindow to determine how much history to pass
   const trimmedHistory = history.slice(-(contextWindow * 2));
 
-  const rewrittenQueries = await resolveQuery(userQuery, trimmedHistory);
+  let rewrittenQueries;
+  try {
+    rewrittenQueries = await resolveQuery(userQuery, trimmedHistory);
+  } catch (err) {
+    if (isThrottlingError(err)) {
+      throw { isThrottling: true, message: 'AWS Bedrock daily token limit reached. Please try again tomorrow or request a quota increase in the AWS console.' };
+    }
+    throw err;
+  }
+
   console.log(`Resolved queries:`, rewrittenQueries);
 
   const allDocs = new Map();
   const allCode = new Map();
 
   for (const rewritten of rewrittenQueries) {
-    const queryVector = await embed(rewritten);
+    let queryVector;
+    try {
+      queryVector = await embed(rewritten);
+    } catch (err) {
+      if (isThrottlingError(err)) {
+        throw { isThrottling: true, message: 'AWS Bedrock daily token limit reached. Please try again tomorrow or request a quota increase in the AWS console.' };
+      }
+      throw err;
+    }
+
     const { docs, code } = await retrieveRelevantChunks(queryVector, {
       ...options,
       limit: 8,
@@ -245,7 +272,16 @@ async function query(userQuery, options = {}) {
   }
 
   const context = buildContext(relevantDocs, relevantCode);
-  const answer = await askClaude(userQuery, context, role, trimmedHistory);
+
+  let answer;
+  try {
+    answer = await askClaude(userQuery, context, role, trimmedHistory);
+  } catch (err) {
+    if (isThrottlingError(err)) {
+      throw { isThrottling: true, message: 'AWS Bedrock daily token limit reached. Please try again tomorrow or request a quota increase in the AWS console.' };
+    }
+    throw err;
+  }
 
   return {
     answer,

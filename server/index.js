@@ -60,10 +60,13 @@ app.post('/api/query', async (req, res) => {
       ...result,
       contextUsed:
         contextWindow_used.length > 0
-          ? { count: contextWindow_used.length, messages: contextWindow_used }
-          : null,
+        ? { count: contextWindow_used.length, messages: contextWindow_used }
+        : null,
     });
   } catch (err) {
+    if (err.isThrottling) {
+      return res.status(429).json({ error: err.message })
+    }
     console.error('Query error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
