@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/TsepoG/rate-your-res-rag#readme",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1048.0",
     "@babel/parser": "^7.29.2",
     "@babel/traverse": "^7.29.0",
     "axios": "^1.14.0",
