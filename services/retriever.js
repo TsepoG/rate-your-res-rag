@@ -38,6 +38,7 @@ const ROLES = {
 };
 
 async function resolveQuery(userQuery, history = []) {
+  // If no history, just do a simple rewrite
   if (history.length === 0) {
     const body = JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
@@ -60,8 +61,9 @@ async function resolveQuery(userQuery, history = []) {
     return result.content[0].text.trim().split('\n').filter(q => q.trim())
   }
 
+  // With history, resolve the question in context first
   const historyText = history
-    .slice(-4)
+    .slice(-4) // last 2 exchanges
     .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 300)}`)
     .join('\n')
 
@@ -116,17 +118,19 @@ function buildContext(docs, code) {
 }
 
 async function askClaude(userQuery, context, role = 'dev', history = []) {
-  const roleConfig = ROLES[role] || ROLES.dev
+  const roleConfig = ROLES[role] || ROLES.dev;
 
-  const recentHistory = history.slice(-6)
+  // Build conversation messages — last 3 exchanges max
+  const recentHistory = history.slice(-6); // 3 user + 3 assistant messages
 
   const messages = [
     ...recentHistory.map(m => ({
       role: m.role,
       content: m.role === 'assistant'
-        ? m.content.slice(0, 500)
+        ? m.content.slice(0, 500) // truncate long assistant messages
         : m.content
     })),
+    // Current question with retrieved context
     {
       role: 'user',
       content: `Here is relevant context retrieved from our systems:
