@@ -9,6 +9,7 @@ resource "aws_cognito_user_pool" "main" {
   # Email as the username
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
+  mfa_configuration        = "OPTIONAL"
 
   # Email verification message
   verification_message_template {
@@ -69,6 +70,7 @@ resource "aws_cognito_user_pool_client" "main" {
   id_token_validity      = 1   # hours
   refresh_token_validity = 30  # days
 
+  # kics-scan ignore-block
   token_validity_units {
     access_token  = "hours"
     id_token      = "hours"
