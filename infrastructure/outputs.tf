@@ -22,3 +22,13 @@ output "cognito_app_client_id" {
   description = "Cognito App Client ID"
   value       = aws_cognito_user_pool_client.main.id
 }
+
+output "domain_name" {
+  description = "Application domain name"
+  value       = var.domain_name
+}
+
+output "certificate_arn" {
+  description = "ACM certificate ARN"
+  value       = aws_acm_certificate_validation.main.certificate_arn
+}

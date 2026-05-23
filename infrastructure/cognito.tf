@@ -67,8 +67,8 @@ resource "aws_cognito_user_pool_client" "main" {
   ]
 
   # Callback + logout URLs
-  callback_urls = [var.cognito_callback_url]
-  logout_urls   = [var.cognito_callback_url]
+  callback_urls = ["https://${var.domain_name}"]
+  logout_urls   = ["https://${var.domain_name}"]
 
   # Token validity
   access_token_validity  = 1   # hours
