@@ -131,7 +131,7 @@ jobs:
           for i in {1..30}; do
             if ssh -i ~/.ssh/rate-your-res-rag-deploy \
               -o StrictHostKeyChecking=no \
-              -o ConnectTimeout=10 \
+              -o ConnectTimeout=10\
               ubuntu@${{ needs.terraform.outputs.public_ip }} \
               "echo ready" 2>/dev/null; then
               echo "EC2 is ready"
@@ -141,7 +141,7 @@ jobs:
             sleep 15
           done
 
-      - name: Deploy to EC2
+      - name: Checkout and build app on EC2
         run: |
           ssh -i ~/.ssh/rate-your-res-rag-deploy \
             -o StrictHostKeyChecking=no \
@@ -168,63 +168,97 @@ jobs:
 
               # Remove dev dependencies after build
               npm ci --omit=dev
+          ENDSSH
 
-              # Write .env file
-              cat > /app/.env << 'EOF'
-              NODE_ENV=production
-              DATABASE_URL=${{ secrets.DATABASE_URL }}
-              AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-              AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-              AWS_REGION_CLAUDE=${{ secrets.AWS_REGION_CLAUDE }}
-              AWS_REGION_TITAN=${{ secrets.AWS_REGION_TITAN }}
-              BEDROCK_CLAUDE_MODEL=${{ secrets.BEDROCK_CLAUDE_MODEL }}
-              BEDROCK_HAIKU_MODEL=${{ secrets.BEDROCK_HAIKU_MODEL }}
-              BEDROCK_EMBED_MODEL=${{ secrets.BEDROCK_EMBED_MODEL }}
-              CONFLUENCE_EMAIL=${{ secrets.CONFLUENCE_EMAIL }}
-              CONFLUENCE_API_TOKEN=${{ secrets.CONFLUENCE_API_TOKEN }}
-              CONFLUENCE_BASE_URL=${{ secrets.CONFLUENCE_BASE_URL }}
-              CONFLUENCE_SPACE_KEY=${{ secrets.CONFLUENCE_SPACE_KEY }}
-              GH_TOKEN=${{ secrets.GH_TOKEN }}
-              GH_OWNER=${{ secrets.GH_OWNER }}
-              GH_REPO=${{ secrets.GH_REPO }}
-              PORT=3000
-              DOMAIN_NAME=${{ secrets.TF_VAR_domain_name }}
-              EOF
+      - name: Write .env file on EC2
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} \
+            "cat > /app/.env" << EOF
+          NODE_ENV=production
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION_CLAUDE=${{ secrets.AWS_REGION_CLAUDE }}
+          AWS_REGION_TITAN=${{ secrets.AWS_REGION_TITAN }}
+          BEDROCK_CLAUDE_MODEL=${{ secrets.BEDROCK_CLAUDE_MODEL }}
+          BEDROCK_HAIKU_MODEL=${{ secrets.BEDROCK_HAIKU_MODEL }}
+          BEDROCK_EMBED_MODEL=${{ secrets.BEDROCK_EMBED_MODEL }}
+          CONFLUENCE_EMAIL=${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_API_TOKEN=${{ secrets.CONFLUENCE_API_TOKEN }}
+          CONFLUENCE_BASE_URL=${{ secrets.CONFLUENCE_BASE_URL }}
+          CONFLUENCE_SPACE_KEY=${{ secrets.CONFLUENCE_SPACE_KEY }}
+          GH_TOKEN=${{ secrets.GH_TOKEN }}
+          GH_OWNER=${{ secrets.GH_OWNER }}
+          GH_REPO=${{ secrets.GH_REPO }}
+          PORT=3000
+          DOMAIN_NAME=${{ secrets.TF_VAR_domain_name }}
+          EOF
 
-              # Run database migrations
+      - name: Run database migrations
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
+              cd /app
               npm run migrate
+          ENDSSH
 
-              # Install Certbot if not already installed
+      - name: Install Certbot
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
               if ! command -v certbot &> /dev/null; then
                 sudo apt-get update -q
                 sudo apt-get install -y certbot python3-certbot-nginx
               fi
+          ENDSSH
 
-              # Configure Nginx — HTTP only first so Certbot can verify domain
-              sudo tee /etc/nginx/sites-available/rateyourres-rag > /dev/null << NGINX
-              server {
-                  listen 80;
-                  server_name ${{ secrets.TF_VAR_domain_name }};
+      - name: Configure Nginx
+        env:
+          DOMAIN: ${{ secrets.TF_VAR_domain_name }}
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} \
+            "sudo tee /etc/nginx/sites-available/rateyourres-rag > /dev/null" << EOF
+          server {
+              listen 80;
+              server_name ${{ secrets.TF_VAR_domain_name }};
 
-                  location / {
-                      proxy_pass http://localhost:3000;
-                      proxy_http_version 1.1;
-                      proxy_set_header Upgrade \$http_upgrade;
-                      proxy_set_header Connection 'upgrade';
-                      proxy_set_header Host \$host;
-                      proxy_cache_bypass \$http_upgrade;
-                  }
+              location / {
+                  proxy_pass http://localhost:3000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
               }
-              NGINX
+          }
+          EOF
 
+      - name: Enable Nginx site
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
               if [ ! -f /etc/nginx/sites-enabled/rateyourres-rag ]; then
                 sudo ln -s /etc/nginx/sites-available/rateyourres-rag /etc/nginx/sites-enabled/
                 sudo rm -f /etc/nginx/sites-enabled/default
               fi
-
               sudo nginx -t && sudo systemctl reload nginx
+          ENDSSH
 
-              # Provision or renew SSL certificate via Certbot
+      - name: Provision SSL certificate
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
               if [ ! -d "/etc/letsencrypt/live/${{ secrets.TF_VAR_domain_name }}" ]; then
                 sudo certbot --nginx \
                   --non-interactive \
@@ -234,44 +268,53 @@ jobs:
               else
                 sudo certbot renew --quiet
               fi
+          ENDSSH
 
-              # Create systemd service if it doesn't exist
+      - name: Configure systemd service
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
               if [ ! -f /etc/systemd/system/rag-server.service ]; then
                 sudo tee /etc/systemd/system/rag-server.service > /dev/null << 'SERVICE'
-              [Unit]
-              Description=RateYourRes RAG Server
-              After=network.target
+          [Unit]
+          Description=RateYourRes RAG Server
+          After=network.target
 
-              [Service]
-              Type=simple
-              User=ubuntu
-              WorkingDirectory=/app
-              ExecStart=/usr/bin/node server/index.js
-              Restart=always
-              RestartSec=10
-              StandardOutput=syslog
-              StandardError=syslog
-              SyslogIdentifier=rag-server
-              EnvironmentFile=/app/.env
+          [Service]
+          Type=simple
+          User=ubuntu
+          WorkingDirectory=/app
+          ExecStart=/usr/bin/node server/index.js
+          Restart=always
+          RestartSec=10
+          StandardOutput=syslog
+          StandardError=syslog
+          SyslogIdentifier=rag-server
+          EnvironmentFile=/app/.env
 
-              [Install]
-              WantedBy=multi-user.target
-              SERVICE
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
                 sudo systemctl daemon-reload
                 sudo systemctl enable rag-server
               fi
+          ENDSSH
 
-              # Start or restart the app
+      - name: Start or restart app
+        run: |
+          ssh -i ~/.ssh/rate-your-res-rag-deploy \
+            -o StrictHostKeyChecking=no \
+            ubuntu@${{ needs.terraform.outputs.public_ip }} << 'ENDSSH'
+              set -e
               if systemctl is-active --quiet rag-server; then
                 sudo systemctl restart rag-server
               else
                 sudo systemctl start rag-server
               fi
-
-              # Wait for app to be ready
               sleep 5
-
-              # Run initial sync if this is a fresh environment
+              cd /app
               npm run sync:check
           ENDSSH
 
