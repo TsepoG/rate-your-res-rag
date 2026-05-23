@@ -12,3 +12,13 @@ output "ssh_command" {
   description = "SSH command to connect to the instance"
   value       = "ssh -i ~/.ssh/rate-your-res-rag ubuntu@${aws_eip.rag.public_ip}"
 }
+
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = aws_cognito_user_pool.main.id
+}
+
+output "cognito_app_client_id" {
+  description = "Cognito App Client ID"
+  value       = aws_cognito_user_pool_client.main.id
+}
