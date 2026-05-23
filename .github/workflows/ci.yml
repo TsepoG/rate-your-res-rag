@@ -96,3 +96,4 @@ jobs:
           TF_VAR_subnet_id: ${{ secrets.TF_VAR_subnet_id }}
           TF_VAR_ami_id: ${{ secrets.TF_VAR_ami_id }}
           TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
+          TF_VAR_cognito_callback_url: ${{ secrets.TF_VAR_cognito_callback_url }}

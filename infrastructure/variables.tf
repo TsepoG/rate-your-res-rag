@@ -47,3 +47,8 @@ variable "ssh_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "cognito_callback_url" {
+  description = "Allowed callback URL for Cognito App Client (your app's base URL)"
+  type        = string
+}
