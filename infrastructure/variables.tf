@@ -52,3 +52,8 @@ variable "cognito_callback_url" {
   description = "Allowed callback URL for Cognito App Client (your app's base URL)"
   type        = string
 }
+
+variable "domain_name" {
+  description = "Primary domain name for the application"
+  type        = string
+}

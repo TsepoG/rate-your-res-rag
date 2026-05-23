@@ -84,6 +84,7 @@ jobs:
           TF_VAR_ami_id: ${{ secrets.TF_VAR_ami_id }}
           TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
           TF_VAR_cognito_callback_url: ${{ secrets.TF_VAR_cognito_callback_url }}
+          TF_VAR_domain_name: ${{ secrets.TF_VAR_domain_name }}
 
       - name: Terraform Apply
         run: terraform apply tfplan
@@ -187,24 +188,31 @@ jobs:
               GH_OWNER=${{ secrets.GH_OWNER }}
               GH_REPO=${{ secrets.GH_REPO }}
               PORT=3000
+              DOMAIN_NAME=${{ secrets.TF_VAR_domain_name }}
               EOF
 
               # Run database migrations
               npm run migrate
 
-              # Configure Nginx as reverse proxy
-              sudo tee /etc/nginx/sites-available/rateyourres-rag > /dev/null << 'NGINX'
+              # Install Certbot if not already installed
+              if ! command -v certbot &> /dev/null; then
+                sudo apt-get update -q
+                sudo apt-get install -y certbot python3-certbot-nginx
+              fi
+
+              # Configure Nginx — HTTP only first so Certbot can verify domain
+              sudo tee /etc/nginx/sites-available/rateyourres-rag > /dev/null << NGINX
               server {
                   listen 80;
-                  server_name _;
+                  server_name ${{ secrets.TF_VAR_domain_name }};
 
                   location / {
                       proxy_pass http://localhost:3000;
                       proxy_http_version 1.1;
-                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Upgrade \$http_upgrade;
                       proxy_set_header Connection 'upgrade';
-                      proxy_set_header Host $host;
-                      proxy_cache_bypass $http_upgrade;
+                      proxy_set_header Host \$host;
+                      proxy_cache_bypass \$http_upgrade;
                   }
               }
               NGINX
@@ -215,6 +223,17 @@ jobs:
               fi
 
               sudo nginx -t && sudo systemctl reload nginx
+
+              # Provision or renew SSL certificate via Certbot
+              if [ ! -d "/etc/letsencrypt/live/${{ secrets.TF_VAR_domain_name }}" ]; then
+                sudo certbot --nginx \
+                  --non-interactive \
+                  --agree-tos \
+                  --email ${{ secrets.CERTBOT_EMAIL }} \
+                  --domains ${{ secrets.TF_VAR_domain_name }}
+              else
+                sudo certbot renew --quiet
+              fi
 
               # Create systemd service if it doesn't exist
               if [ ! -f /etc/systemd/system/rag-server.service ]; then
