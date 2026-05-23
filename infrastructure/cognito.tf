@@ -11,6 +11,11 @@ resource "aws_cognito_user_pool" "main" {
   auto_verified_attributes = ["email"]
   mfa_configuration        = "OPTIONAL"
 
+  # TOTP-based MFA (Google Authenticator etc.) — required when mfa_configuration is OPTIONAL
+  software_token_mfa_configuration {
+    enabled = true
+  }
+
   # Email verification message
   verification_message_template {
     default_email_option = "CONFIRM_WITH_CODE"
